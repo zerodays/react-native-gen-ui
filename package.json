@@ -1,0 +1,12 @@
+{
+  "name": "react-native-gen-ui",
+  "version": "0.1.0",
+  "description": "A Generative AI library for React Native.",
+  "main": "index.js",
+  "scripts": {
+  },
+  "keywords": ["generative", "ai", "ui"],
+  "author": "zerodays d.o.o.",
+  "homepage": "https://github.com/zerodays/react-native-gen-ui#readme",
+  "license": "ISC"
+}
