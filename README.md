@@ -2,7 +2,15 @@
 
 Inspired by Vercel's [Generative UI](https://sdk.vercel.ai/docs/concepts/ai-rsc) for React Server Components.
 
-TODO: More info here
+# Getting started
+
+## Example
+
+## Installation
+
+## Basic usage
+
+# Documentation
 
 # License
 
