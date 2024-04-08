@@ -1,121 +1,66 @@
-
-
-/* This file mimics some functionality from the official [OpenAI TypeScript Library](https://github.com/openai/openai-node) */
-
-import EventSource from "react-native-sse";
-import type { MessageEvent } from "react-native-sse";
-import type {
+import {
   ChatCompletionChunk,
   ChatCompletionCreateParamsStreaming,
   ChatCompletionMessageParam,
   ChatCompletionMessageToolCall,
-  ChatCompletionTool,
-} from "openai/resources";
-import { z } from "zod";
-import { zodToJsonSchema } from "zod-to-json-schema";
-import React from "react";
+} from 'openai/resources';
+import z from 'zod';
+import { OpenAIApi } from './openai-api';
+import React from 'react';
+import { filterOutReactComponents, sleep, toolsToJsonSchema } from './utils';
+import EventSource, { EventSourceEvent } from 'react-native-sse';
 
-type Component = React.ReactNode | JSX.Element | Element;
+// Includes a few different types.
+// A component type that can be returned from a tool's render function.
+export type Component = React.ReactNode | JSX.Element | Element;
 
-type OpenAIApiParams = {
-  apiKey: string;
-  model: string;
-  basePath?: string;
-};
-
+// Tool's render function can return either data or a component
 export type ChatCompletionMessageOrReactComponent =
   | ChatCompletionMessageParam
   | Component;
 
+// Tool definition
+// Takes a description (visible to model)
+// Parameters (zod schema), that are converted to json schema and then sent to the model
+// Render function that takes the parameters and returns a generator that yields components, then returns both data and a component to display
 interface Tool<Z extends z.Schema> {
   description: string;
   parameters: Z;
   render: (args: z.infer<Z>) => ToolRenderReturnType;
 }
 
+// A generic type that allows for use of type-safe validators
 export type ValidatorsObject = {
   [name: string]: z.Schema;
 };
 
+// Generic tools type definition
 export type Tools<V extends ValidatorsObject = {}> = {
   [name in keyof V]: Tool<V[name]>;
 };
 
-type ChatCompletionCreateParams = Omit<
+// Chat completion parameters have a different, type safe definition
+export type ChatCompletionCreateParams = Omit<
   ChatCompletionCreateParamsStreaming,
-  "tools"
+  'tools'
 > & {
   tools?: Tools<{ [toolName: string]: z.Schema }>;
 };
 
-type GeneratorReturn = Component | { component: Component; data: object };
+type ToolGeneratorReturn = { component: Component; data: object };
 
-// A generator that will yield some (0 or more) react components and then finish with an object
+// A generator that will yield some (0 or more) React components and then finish with an object, containing both the data and the component to display.
 export type ToolRenderReturnType = AsyncGenerator<
-  GeneratorReturn,
-  GeneratorReturn,
+  Component,
+  ToolGeneratorReturn,
   unknown
 >;
 
-interface ChatCompletionCallbacks {
+// Chat completion callbacks, utilized by the caller
+export interface ChatCompletionCallbacks {
   onChunkReceived?: (messages: ChatCompletionMessageOrReactComponent[]) => void;
   onDone?: (messages: ChatCompletionMessageOrReactComponent[]) => void;
   onError?: (error: Error) => void;
-}
-
-export class OpenAI {
-  private api: OpenAIApi;
-  private model: string;
-
-  constructor({ apiKey, model, basePath }: OpenAIApiParams) {
-    this.api = new OpenAIApi({
-      apiKey,
-      basePath,
-    });
-    this.model = model;
-  }
-
-  private getApi() {
-    return this.api;
-  }
-
-  async createChatCompletion(
-    params: Omit<
-      ChatCompletionCreateParams,
-      "model" | "temperature" | "stream"
-    >,
-    callbacks: ChatCompletionCallbacks
-  ) {
-    return this.getApi().createChatCompletion(
-      {
-        ...params,
-        model: this.model,
-        temperature: 0.3,
-        stream: true,
-      },
-      callbacks
-    );
-  }
-}
-
-class OpenAIApi {
-  apiKey: string;
-  basePath: string;
-  constructor({ apiKey, basePath }: { apiKey: string; basePath?: string }) {
-    this.apiKey = apiKey;
-    this.basePath = basePath ?? "https://api.openai.com/v1";
-  }
-
-  public createChatCompletion(
-    params: ChatCompletionCreateParams,
-    callbacks: ChatCompletionCallbacks
-  ): Promise<ChatCompletion> {
-    return new Promise((resolve, reject) => {
-      const cc = new ChatCompletion(this, params, callbacks);
-      cc.start();
-      resolve(cc);
-    });
-  }
 }
 
 export class ChatCompletion {
@@ -124,11 +69,11 @@ export class ChatCompletion {
   private callbacks: ChatCompletionCallbacks;
   private params: ChatCompletionCreateParams;
 
-  private newMessage: string = "";
+  private newMessage: string = '';
   // TODO: handle parallel tool calls
   private newToolCall: ChatCompletionMessageToolCall.Function = {
-    name: "",
-    arguments: "",
+    name: '',
+    arguments: '',
   };
   private toolCallResult: any = null;
   private toolRenderResult: Component | null = null;
@@ -137,7 +82,7 @@ export class ChatCompletion {
   constructor(
     api: OpenAIApi,
     params: ChatCompletionCreateParams,
-    callbacks: ChatCompletionCallbacks
+    callbacks: ChatCompletionCallbacks,
   ) {
     this.api = api;
     this.params = params;
@@ -145,46 +90,46 @@ export class ChatCompletion {
   }
 
   start() {
-    this.eventSource = new EventSource(
+    this.eventSource = new EventSource<string>(
       `${this.api.basePath}/chat/completions`,
       {
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           Authorization: `Bearer ${this.api.apiKey}`,
         },
         // Do not poll, just connect once
         pollingInterval: 0,
-        method: "POST",
+        method: 'POST',
         body: this.serializeParams(),
-      }
+      },
     );
 
     this.eventSource.addEventListener(
-      "message",
-      this.handleNewMessage.bind(this)
+      'message',
+      this.handleNewMessage.bind(this),
     );
 
-    this.eventSource.addEventListener("error", (event) => {
-      if (event.type === "error") {
-        console.error("Connection error:", event.message);
+    this.eventSource.addEventListener('error', (event) => {
+      if (event.type === 'error') {
+        console.error('Connection error:', event.message);
         this.callbacks.onError?.(new Error(event.message));
-      } else if (event.type === "exception") {
-        console.error("Error:", event.message, event.error);
+      } else if (event.type === 'exception') {
+        console.error('Error:', event.message, event.error);
         this.callbacks.onError?.(new Error(event.message));
       }
     });
   }
 
-  private handleNewMessage(event: MessageEvent) {
+  private handleNewMessage(event: EventSourceEvent<'message'>) {
     // If [DONE], close the connection and mark as done
-    if (event.data === "[DONE]") {
+    if (event.data === '[DONE]') {
       this.eventSource?.close();
       return;
     }
 
     if (!event.data) {
-      console.error("Empty message received.");
-      this.callbacks.onError?.(new Error("Empty message received."));
+      console.error('Empty message received.');
+      this.callbacks.onError?.(new Error('Empty message received.'));
       return;
     }
 
@@ -197,18 +142,18 @@ export class ChatCompletion {
     const firstChoice = e.choices[0];
 
     // TODO: function calls
-    if (firstChoice.finish_reason === "tool_calls") {
-      this.handleToolCall();
+    if (firstChoice.finish_reason === 'tool_calls') {
+      void this.handleToolCall();
       return;
     }
 
     // Handle stop
-    if (firstChoice.finish_reason === "stop") {
+    if (firstChoice.finish_reason === 'stop') {
       // Call onDone
       this.callbacks.onDone?.([
         {
           content: this.newMessage,
-          role: "assistant",
+          role: 'assistant',
         },
       ]);
       this.finished = true;
@@ -244,12 +189,12 @@ export class ChatCompletion {
     }
 
     // TODO: handle finish reason `length`
-    console.error("Unknown message received:", event.data);
-    this.callbacks.onError?.(new Error("Unknown message received."));
+    console.error('Unknown message received:', event.data);
+    this.callbacks.onError?.(new Error('Unknown message received.'));
   }
 
   serializeParams() {
-    const tools = this.transformTools();
+    const tools = toolsToJsonSchema(this.params.tools ?? {});
 
     return JSON.stringify({
       ...this.params,
@@ -257,27 +202,10 @@ export class ChatCompletion {
     });
   }
 
-  private transformTools() {
-    const tools: Array<ChatCompletionTool> = [];
-
-    for (const [key, value] of Object.entries(this.params.tools ?? {})) {
-      tools.push({
-        type: "function",
-        function: {
-          name: key,
-          description: value.description,
-          parameters: zodToJsonSchema(value.parameters),
-        },
-      });
-    }
-
-    return tools;
-  }
-
   private async handleToolCall() {
-    if (this.newToolCall.name === "") {
-      console.error("Tool call received without a name.");
-      this.callbacks.onError?.(new Error("Tool call received without a name."));
+    if (this.newToolCall.name === '') {
+      console.error('Tool call received without a name.');
+      this.callbacks.onError?.(new Error('Tool call received without a name.'));
       return;
     }
 
@@ -285,9 +213,9 @@ export class ChatCompletion {
       this.params.tools == null ||
       !Object.keys(this.params.tools).includes(this.newToolCall.name)
     ) {
-      console.error("Tool call received for unknown tool:", this.newToolCall);
+      console.error('Tool call received for unknown tool:', this.newToolCall);
       this.callbacks.onError?.(
-        new Error("Tool call received for unknown tool.")
+        new Error('Tool call received for unknown tool.'),
       );
       return;
     }
@@ -295,9 +223,9 @@ export class ChatCompletion {
     const chosenTool = this.params.tools[this.newToolCall.name];
 
     if (chosenTool == null) {
-      console.error("Tool call received for unknown tool:", this.newToolCall);
+      console.error('Tool call received for unknown tool:', this.newToolCall);
       this.callbacks.onError?.(
-        new Error("Tool call received for unknown tool.")
+        new Error('Tool call received for unknown tool.'),
       );
       return;
     }
@@ -308,8 +236,8 @@ export class ChatCompletion {
     try {
       chosenTool.parameters.parse(args);
     } catch (e) {
-      console.error("Invalid arguments received:", e);
-      this.callbacks.onError?.(new Error("Invalid arguments received."));
+      console.error('Invalid arguments received:', e);
+      this.callbacks.onError?.(new Error('Invalid arguments received.'));
       return;
     }
 
@@ -318,7 +246,7 @@ export class ChatCompletion {
     const generator = chosenTool.render(args);
 
     let next = null;
-    while (true) {
+    while (next == null || !next.done) {
       next = await generator.next();
       const value = next.value;
 
@@ -326,8 +254,8 @@ export class ChatCompletion {
       // TODO: do better
       if (
         value != null &&
-        Object.keys(value).includes("data") &&
-        Object.keys(value).includes("component")
+        Object.keys(value).includes('data') &&
+        Object.keys(value).includes('component')
       ) {
         const v = value as { data: any; component: Component };
         this.toolRenderResult = v.component;
@@ -339,7 +267,7 @@ export class ChatCompletion {
       this.notifyChunksReceived();
 
       if (next.done) {
-        console.log("Function call done", {
+        console.log('Function call done', {
           name: this.newToolCall.name,
           result: this.toolCallResult,
         });
@@ -375,14 +303,14 @@ export class ChatCompletion {
         onDone: (messages) => {
           this.callbacks.onDone?.([...this.getMessages(), ...messages]);
         },
-      }
+      },
     );
 
     newCompletion.start();
 
     // Wait until the new completion is finished
     while (!newCompletion.finished) {
-      await wait(100);
+      await sleep(100);
     }
   }
 
@@ -398,9 +326,9 @@ export class ChatCompletion {
   private getMessages() {
     const messages: ChatCompletionMessageOrReactComponent[] = [];
 
-    if (this.newMessage != null && this.newMessage !== "") {
+    if (this.newMessage != null && this.newMessage !== '') {
       messages.push({
-        role: "assistant",
+        role: 'assistant',
         content: this.newMessage,
       });
     }
@@ -411,7 +339,7 @@ export class ChatCompletion {
 
     if (this.toolCallResult != null) {
       messages.push({
-        role: "function",
+        role: 'function',
         name: this.newToolCall.name,
         content: JSON.stringify(this.toolCallResult),
       });
@@ -419,14 +347,4 @@ export class ChatCompletion {
 
     return messages;
   }
-}
-
-const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-export function filterOutReactComponents(
-  messages: ChatCompletionMessageOrReactComponent[]
-): ChatCompletionMessageParam[] {
-  return messages.filter(
-    (m) => !React.isValidElement(m)
-  ) as ChatCompletionMessageParam[];
 }

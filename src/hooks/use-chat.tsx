@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import {
-  ChatCompletionMessageOrReactComponent,
-  OpenAI,
-  Tools,
-  ValidatorsObject,
-  filterOutReactComponents,
-} from '../utils/openai';
 import { ChatCompletionMessageParam } from 'openai/resources';
 import { z } from 'zod';
+import {
+  ChatCompletionMessageOrReactComponent,
+  Tools,
+  ValidatorsObject,
+} from '../openai/chat-completion';
+import { OpenAI } from '../openai/openai';
+import { filterOutReactComponents } from '../openai/utils';
 
 interface UseChatParams<V extends ValidatorsObject = {}> {
   // Initial messages to display
@@ -45,7 +45,7 @@ const openAi = new OpenAI({
 
 // Hook that handles chat logic for user chat conversation
 const useChat: <V extends ValidatorsObject = {}>(
-  params: UseChatParams<V>
+  params: UseChatParams<V>,
 ) => UseChatResponse = ({
   initialMessages,
   onSuccess,
@@ -96,13 +96,13 @@ const useChat: <V extends ValidatorsObject = {}>(
         tools: tools as Tools<{ [name: string]: z.Schema }> | undefined,
       },
       {
-        onChunkReceived: newMessages => {
+        onChunkReceived: (newMessages) => {
           // Streaming started - update streaming state
           setIsStreaming(true);
           // Update messages with streamed message
           setMessages([...updatedMessages, ...newMessages]);
         },
-        onError: error => {
+        onError: (error) => {
           // Reset loading and streaming states
           setIsStreaming(false);
           setIsLoading(false);
@@ -111,14 +111,14 @@ const useChat: <V extends ValidatorsObject = {}>(
           // Call onError callback (if provided)
           onError?.(error);
         },
-        onDone: messages => {
+        onDone: (messages) => {
           // Reset loading and streaming states
           setIsStreaming(false);
           setIsLoading(false);
           // Streaming done - call onSuccess callback
           onSuccess?.(messages);
         },
-      }
+      },
     );
   };
 
