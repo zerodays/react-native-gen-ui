@@ -17,6 +17,7 @@ interface UseChatParams<V extends ValidatorsObject = {}> {
   // Called when an error occurs while streaming
   onError?: (error: Error) => void;
   tools?: Tools<V>;
+  maxRecursionDepth?: number;
 }
 
 interface UseChatResponse {

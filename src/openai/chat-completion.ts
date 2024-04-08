@@ -89,7 +89,9 @@ export class ChatCompletion {
     this.callbacks = callbacks;
   }
 
+  // Inits the completion and starts the streaming
   start() {
+    // Create a new event source using Completions API
     this.eventSource = new EventSource<string>(
       `${this.api.basePath}/chat/completions`,
       {
@@ -104,11 +106,11 @@ export class ChatCompletion {
       },
     );
 
+    // Add event listeners
     this.eventSource.addEventListener(
       'message',
-      this.handleNewMessage.bind(this),
+      this.handleNewChunk.bind(this),
     );
-
     this.eventSource.addEventListener('error', (event) => {
       if (event.type === 'error') {
         console.error('Connection error:', event.message);
@@ -120,34 +122,39 @@ export class ChatCompletion {
     });
   }
 
-  private handleNewMessage(event: EventSourceEvent<'message'>) {
+  // Handles a new chunk received
+  private handleNewChunk(event: EventSourceEvent<'message'>) {
     // If [DONE], close the connection and mark as done
     if (event.data === '[DONE]') {
       this.eventSource?.close();
       return;
     }
 
+    // Handle the case of an empty message
     if (!event.data) {
       console.error('Empty message received.');
       this.callbacks.onError?.(new Error('Empty message received.'));
       return;
     }
 
+    // Parse the message as a ChatCompletionChunk
     const e = JSON.parse(event.data) as ChatCompletionChunk;
 
+    // Again, handle empty messages
     if (e.choices == null || e.choices.length === 0) {
       return;
     }
 
+    // This library currently only supports one choice
     const firstChoice = e.choices[0];
 
-    // TODO: function calls
+    // If the model stops because of a tool call, call the tool
     if (firstChoice.finish_reason === 'tool_calls') {
       void this.handleToolCall();
       return;
     }
 
-    // Handle stop
+    // If the model stops, that is it
     if (firstChoice.finish_reason === 'stop') {
       // Call onDone
       this.callbacks.onDone?.([
@@ -156,6 +163,8 @@ export class ChatCompletion {
           role: 'assistant',
         },
       ]);
+
+      // Mark as finished
       this.finished = true;
       return;
     }
@@ -172,15 +181,15 @@ export class ChatCompletion {
       firstChoice.delta.tool_calls != null &&
       firstChoice.delta.tool_calls.length > 0
     ) {
-      // TODO: can there be more than one tool call?
+      // TODO: OpenAI supports multiple parallel tool calls, this library does not (yet)
       const firstToolCall = firstChoice.delta.tool_calls[0];
 
-      // Append name if available
+      // Append function name if available
       if (firstToolCall.function?.name) {
         this.newToolCall.name += firstToolCall.function.name;
       }
 
-      // Append arguments if available
+      // Append function arguments if available
       if (firstToolCall.function?.arguments) {
         this.newToolCall.arguments += firstToolCall.function.arguments;
       }
@@ -188,11 +197,14 @@ export class ChatCompletion {
       return;
     }
 
-    // TODO: handle finish reason `length`
+    // TODO: maybe handle finish reason `length`
+
+    // This should not happen, but if it does, log it
     console.error('Unknown message received:', event.data);
     this.callbacks.onError?.(new Error('Unknown message received.'));
   }
 
+  // Serializes all the parameters to JSON for calling the API
   serializeParams() {
     const tools = toolsToJsonSchema(this.params.tools ?? {});
 
@@ -202,118 +214,7 @@ export class ChatCompletion {
     });
   }
 
-  private async handleToolCall() {
-    if (this.newToolCall.name === '') {
-      console.error('Tool call received without a name.');
-      this.callbacks.onError?.(new Error('Tool call received without a name.'));
-      return;
-    }
-
-    if (
-      this.params.tools == null ||
-      !Object.keys(this.params.tools).includes(this.newToolCall.name)
-    ) {
-      console.error('Tool call received for unknown tool:', this.newToolCall);
-      this.callbacks.onError?.(
-        new Error('Tool call received for unknown tool.'),
-      );
-      return;
-    }
-
-    const chosenTool = this.params.tools[this.newToolCall.name];
-
-    if (chosenTool == null) {
-      console.error('Tool call received for unknown tool:', this.newToolCall);
-      this.callbacks.onError?.(
-        new Error('Tool call received for unknown tool.'),
-      );
-      return;
-    }
-
-    const args = JSON.parse(this.newToolCall.arguments);
-
-    // Verify that the arguments are valid by parsing them with the zod schema
-    try {
-      chosenTool.parameters.parse(args);
-    } catch (e) {
-      console.error('Invalid arguments received:', e);
-      this.callbacks.onError?.(new Error('Invalid arguments received.'));
-      return;
-    }
-
-    // Call the tool and iterate over results
-    // Use while to access the last value of the generator (what it returns too rather then only what it yields)
-    const generator = chosenTool.render(args);
-
-    let next = null;
-    while (next == null || !next.done) {
-      next = await generator.next();
-      const value = next.value;
-
-      // If the value is contains data and component, save both
-      // TODO: do better
-      if (
-        value != null &&
-        Object.keys(value).includes('data') &&
-        Object.keys(value).includes('component')
-      ) {
-        const v = value as { data: any; component: Component };
-        this.toolRenderResult = v.component;
-        this.toolCallResult = v.data;
-      } else if (React.isValidElement(value)) {
-        this.toolRenderResult = value;
-      }
-
-      this.notifyChunksReceived();
-
-      if (next.done) {
-        console.log('Function call done', {
-          name: this.newToolCall.name,
-          result: this.toolCallResult,
-        });
-        break;
-      }
-    }
-
-    // Call recursive streaming
-    // TODO: handle max recursion depth
-    await this.streamRecursiveAfterToolCall();
-    this.finished = true;
-  }
-
-  private async streamRecursiveAfterToolCall() {
-    // Create a new completion and stream up messages from this one and any from the recursive ones
-    const newCompletion = new ChatCompletion(
-      this.api,
-      {
-        ...this.params,
-        messages: [
-          ...this.params.messages,
-          ...filterOutReactComponents(this.getMessages()),
-        ],
-      },
-      {
-        ...this.callbacks,
-        onChunkReceived: (messages) => {
-          this.callbacks.onChunkReceived?.([
-            ...this.getMessages(),
-            ...messages,
-          ]);
-        },
-        onDone: (messages) => {
-          this.callbacks.onDone?.([...this.getMessages(), ...messages]);
-        },
-      },
-    );
-
-    newCompletion.start();
-
-    // Wait until the new completion is finished
-    while (!newCompletion.finished) {
-      await sleep(100);
-    }
-  }
-
+  // Calls all the callbacks with the current messages
   private notifyChunksReceived() {
     if (!this.callbacks.onChunkReceived) {
       return;
@@ -323,6 +224,8 @@ export class ChatCompletion {
     this.callbacks.onChunkReceived(messages);
   }
 
+  // Returns all the messages that have been received so far,
+  // including the new message, tool render result and recursive call result
   private getMessages() {
     const messages: ChatCompletionMessageOrReactComponent[] = [];
 
@@ -346,5 +249,123 @@ export class ChatCompletion {
     }
 
     return messages;
+  }
+
+  // Calls the tool and then recursively calls the streaming again
+  private async handleToolCall() {
+    // Check if the tool call is valid
+    if (this.newToolCall.name === '') {
+      console.error('Tool call received without a name.');
+      this.callbacks.onError?.(new Error('Tool call received without a name.'));
+      return;
+    }
+
+    // Check if the tool is valid
+    if (
+      this.params.tools == null ||
+      !Object.keys(this.params.tools).includes(this.newToolCall.name)
+    ) {
+      console.error('Tool call received for unknown tool:', this.newToolCall);
+      this.callbacks.onError?.(
+        new Error('Tool call received for unknown tool.'),
+      );
+      return;
+    }
+
+    // Extract the chosen tool
+    const chosenTool = this.params.tools[this.newToolCall.name];
+
+    // Check if the tool is valid
+    if (chosenTool == null) {
+      console.error('Tool call received for unknown tool:', this.newToolCall);
+      this.callbacks.onError?.(
+        new Error('Tool call received for unknown tool.'),
+      );
+      return;
+    }
+
+    // Parse the arguments
+    const args = JSON.parse(this.newToolCall.arguments);
+
+    // Verify that the arguments are valid by parsing them with the zod schema
+    try {
+      chosenTool.parameters.parse(args);
+    } catch (e) {
+      console.error('Invalid arguments received:', e);
+      this.callbacks.onError?.(new Error('Invalid arguments received.'));
+      return;
+    }
+
+    // Call the tool and iterate over results
+    // Use while to access the last value of the generator (what it returns too rather then only what it yields)
+    // Only the last returned/yielded value is the one we use
+    const generator = chosenTool.render(args);
+
+    let next = null;
+    while (next == null || !next.done) {
+      // Fetch the next value
+      next = await generator.next();
+      const value = next.value;
+
+      // If the value is contains data and component, save both
+      if (
+        value != null &&
+        Object.keys(value).includes('data') &&
+        Object.keys(value).includes('component')
+      ) {
+        const v = value as { data: any; component: Component };
+        this.toolRenderResult = v.component;
+        this.toolCallResult = v.data;
+      } else if (React.isValidElement(value)) {
+        this.toolRenderResult = value;
+      }
+
+      // Update the parent by calling the callbacks
+      this.notifyChunksReceived();
+
+      // Break if the generator is done
+      if (next.done) {
+        break;
+      }
+    }
+
+    // Call recursive streaming
+    await this.streamRecursiveAfterToolCall();
+    this.finished = true;
+  }
+
+  private async streamRecursiveAfterToolCall() {
+    // Create a new completion and stream up messages from this one and any from the recursive ones
+    const newCompletion = new ChatCompletion(
+      this.api,
+      {
+        ...this.params,
+        messages: [
+          ...this.params.messages, // Messages from this completion
+          ...filterOutReactComponents(this.getMessages()), // Messages from the recursive completion
+        ],
+      },
+      {
+        ...this.callbacks, // Use the same callbacks, except for onChunkReceived and onDone
+        onChunkReceived: (messages) => {
+          this.callbacks.onChunkReceived?.([
+            ...this.getMessages(), // Prepend messages from this completion
+            ...messages,
+          ]);
+        },
+        onDone: (messages) => {
+          // Compile all messages from this completion and the recursive one
+          this.callbacks.onDone?.([...this.getMessages(), ...messages]);
+        },
+      },
+    );
+
+    // Start the new completion
+    newCompletion.start();
+
+    // Wait until the new completion is finished
+    while (!newCompletion.finished) {
+      await sleep(100);
+    }
   }
 }
