@@ -206,8 +206,11 @@ export class ChatCompletion {
 
   // Serializes all the parameters to JSON for calling the API
   serializeParams() {
-    const tools = toolsToJsonSchema(this.params.tools ?? {});
+    if (this.params.tools == null) {
+      return JSON.stringify(this.params);
+    }
 
+    const tools = toolsToJsonSchema(this.params.tools ?? {});
     return JSON.stringify({
       ...this.params,
       tools,
