@@ -1,13 +1,13 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState } from 'react';
 import {
   ChatCompletionMessageOrReactComponent,
   OpenAI,
   Tools,
   ValidatorsObject,
   filterOutReactComponents,
-} from "../utils/openai";
-import { ChatCompletionMessageParam } from "openai/resources";
-import { z } from "zod";
+} from '../utils/openai';
+import { ChatCompletionMessageParam } from 'openai/resources';
+import { z } from 'zod';
 
 interface UseChatParams<V extends ValidatorsObject = {}> {
   // Initial messages to display
@@ -33,17 +33,15 @@ interface UseChatResponse {
   // Updates internal state of user input
   onInputChange: React.Dispatch<React.SetStateAction<string>>;
   // Handles user message submission
-  handleSubmit: (msg: string) => void;
+  handleSubmit: (msg: string) => Promise<void>;
 }
-
+// OpenAI instance initialization
 const openAi = new OpenAI({
-  // OpenAI instance initialization
-  apiKey: process.env.EXPO_PUBLIC_OPENAI_API_KEY ?? "",
-  model: "gpt-4-0125-preview",
+  // Provided by EXPO_PUBLIC_OPENAI_API_KEY environment variable
+  apiKey: process.env.EXPO_PUBLIC_OPENAI_API_KEY ?? '',
+  // Provided by EXPO_PUBLIC_OPENAI_MODEL environment variable, defaults to 'gpt-4' model
+  model: process.env.EXPO_PUBLIC_OPENAI_MODEL ?? 'gpt-4',
 });
-
-export const wait = (ms: number) =>
-  new Promise((resolve) => setTimeout(resolve, ms));
 
 // Hook that handles chat logic for user chat conversation
 const useChat: <V extends ValidatorsObject = {}>(
@@ -54,13 +52,15 @@ const useChat: <V extends ValidatorsObject = {}>(
   onError,
   tools,
 } = {}): UseChatResponse => {
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState('');
   const [messages, setMessages] = useState<
     ChatCompletionMessageOrReactComponent[]
   >([]);
   const [error, setError] = useState<Error | undefined>();
-  // Loading states
+  /* Loading states */
+  // True as soon as user submits a message
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  // True while streaming response
   const [isStreaming, setIsStreaming] = useState<boolean>(false);
 
   useEffect(() => {
@@ -75,14 +75,14 @@ const useChat: <V extends ValidatorsObject = {}>(
     // Start loading
     setIsLoading(true);
     // Clear input on submit
-    setInput("");
+    setInput('');
 
     const updatedMessages: ChatCompletionMessageOrReactComponent[] = [
       ...messages,
-      // Append user submitted message to current messages
       {
+        // Append user submitted message to current messages
         content: msg,
-        role: "user",
+        role: 'user',
       },
     ];
 
@@ -96,21 +96,22 @@ const useChat: <V extends ValidatorsObject = {}>(
         tools: tools as Tools<{ [name: string]: z.Schema }> | undefined,
       },
       {
-        onChunkReceived: (newMessages) => {
+        onChunkReceived: newMessages => {
           // Streaming started - update streaming state
           setIsStreaming(true);
           // Update messages with streamed message
           setMessages([...updatedMessages, ...newMessages]);
         },
-        onError: (error) => {
+        onError: error => {
           // Reset loading and streaming states
           setIsStreaming(false);
           setIsLoading(false);
           // Error while streaming
           setError(error);
+          // Call onError callback (if provided)
           onError?.(error);
         },
-        onDone: (messages) => {
+        onDone: messages => {
           // Reset loading and streaming states
           setIsStreaming(false);
           setIsLoading(false);
@@ -132,4 +133,4 @@ const useChat: <V extends ValidatorsObject = {}>(
   };
 };
 
-export {useChat};
+export { useChat };

@@ -122,11 +122,12 @@
   },
   "dependencies": {
     "openai": "^4.33.0",
+    "zod": "^3.22.4",
     "zod-to-json-schema": "^3.22.5"
   },
   "peerDependencies": {
-    "react-native": "^0.73.6",
     "react": "^18.2.0",
+    "react-native": "^0.73.6",
     "react-native-sse": "^1.2.1"
   }
 }
