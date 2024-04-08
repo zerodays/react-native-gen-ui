@@ -1,13 +1,17 @@
 # React Native Generative UI Library
 
-Inspired by Vercel's [Generative UI](https://sdk.vercel.ai/docs/concepts/ai-rsc) for React Server Components. Offering a seamless integration of OpenAI's advanced AI capabilities within React Native applications. Library provides components and helpers for building AI-powered streaming text and chat UIs.
+Inspired by Vercel's [Generative UI](https://sdk.vercel.ai/docs/concepts/ai-rsc) for React Server Components.
+
+Offers a seamless integration of OpenAI's advanced AI capabilities within React Native applications. Library provides components and helpers for building AI-powered streaming text and chat UIs.
 
 ## Features
 
 - React Native (with Expo) type-safe helpers for streaming text responses + components for building chat UIs
-- First-class support for [Function calling](https://platform.openai.com/docs/guides/function-calling) with component support that LLM decides to redner for interactive user interfaces
+- First-class support for [Function calling](https://platform.openai.com/docs/guides/function-calling) with component support that LLM decides to render for interactive user interfaces
 - Easy UI implementation with powerful `useChat` hook
 - Support for [OpenAI models](https://platform.openai.com/docs/guides/text-generation)
+- Streaming responses (only streaming is supported ATM).
+- Supports OpenAI's [Chat completions](https://platform.openai.com/docs/guides/text-generation/chat-completions-api) API.
 
 ## Installation :rocket:
 
@@ -46,7 +50,7 @@ import { useChat } from 'react-native-gen-ui';
 
 ### Use the hook
 
-Initialize the `useChat` hook inside your component. You can optionally pass **initial messages**, **success** and **error handlers**, and any tools validators you might need for validating messages.
+Initialize the `useChat` hook inside your component. You can optionally pass **initial messages**, **success** and **error handlers**, and any tools the model will have access to.
 
 ```ts
 const { input, messages, isLoading, handleSubmit, onInputChange } = useChat({
@@ -67,8 +71,7 @@ Create the UI for your chat interface that includes input, submit button and a v
 return (
   <View>
     {messages.map((msg, index) => {
-      // Message can be react component or string
-
+      // Message can be react component or string (see function calling section for more details)
       if (React.isValidElement(msg)) {
         return msg;
       }
@@ -112,14 +115,21 @@ const { input, messages, isLoading, handleSubmit, onInputChange } = useChat({
         // Render component for weather - can yield loading state
         render: async function* (args) {
           // With 'yield' we can show loading  while fetching weather data
-          yield <SearchingLocation />;
+          yield <Spinner />;
 
           // Call API for current weather
           const weatherData = await fetchWeatherData(args.location);
 
+          // We can yield again to replace the loading component at any time.
+          // This can be useful for showing progress or intermediate states.
+          yield <Loading />
+
+          // Return the final result
           return {
+            // The data will be seen by the model
+            data: weatherData,
+            // The component will be rendered to the user
             component: (
-              // Actual component to render after data fetching is done
               <Weather
                 location={args.location}
                 current={weatherData[0]}
@@ -133,31 +143,7 @@ const { input, messages, isLoading, handleSubmit, onInputChange } = useChat({
 });
 ```
 
-Tools framework within `useChat` is highly extensible. You can define multiple tools to perform various functions based on your chat application's requirements, enriching the user experience with interactive and dynamic content.
-
-### Guiding AI's response bahvior
-
-The `render` function within each tool in the `useChat` hook provides a powerful mechanism for not just interacting with users through React components, but also for guiding the AI's response behavior.
-
-This is achieved through an **optional** `data` **object** that the function can return alongside the component. `data` object consist of following parameters:
-
-```ts
-...
-return {
-    component: ...,
-    // Optional - used for guiding the AI's response behavior
-    data: {
-        // Example: weather data details
-        // provide both the model and the application with specific information about the weather
-        // enabling tailored responses and potential follow-up interactions
-        current: weatherData[0],
-        forecast: weatherData,
-        location: args.location,
-    },
-};
-```
-
-By leveraging the data object effectively, you can create more engaging, informative, and interactive chat experiences within their React Native applications.
+Tools framework within `useChat` is highly extensible. You can define multiple tools to perform various functions based on your chat application's requirements.
 
 ## Reference
 
