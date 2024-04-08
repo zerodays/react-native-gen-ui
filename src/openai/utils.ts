@@ -41,5 +41,5 @@ export function toolsToJsonSchema(
     });
   }
 
-  return tools;
+  return result;
 }
