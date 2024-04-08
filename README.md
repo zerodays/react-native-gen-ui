@@ -66,9 +66,15 @@ Create the UI for your chat interface that includes input, submit button and a v
 ```ts
 return (
   <View>
-    {messages.map((msg, index) => (
-      <Text key={index}>{msg.content}</Text>
-    ))}
+    {messages.map((msg, index) => {
+      // Message can be react component or string
+
+      if (React.isValidElement(msg)) {
+        return msg;
+      }
+
+      return <Text key={index}>{msg.content}</Text>
+    })}
     <TextInput value={input} onChangeText={onInputChange} />
     <Button
       onPress={() => handleSubmit(input)}
@@ -79,13 +85,13 @@ return (
 );
 ```
 
-Ensure you pass the input state to the TextInput component, onInputChange to handle text changes, and handleSubmit for sending messages.
+Ensure you pass the input state to the `TextInput` component, `onInputChange` to handle text changes, and `handleSubmit` for sending messages.
 
 Congrats :tada: you successfully implemented chat using OpenAI model!
 
 ## Function calling (Tools) :wrench:
 
-The `useChat` hook supports the integration of **Tools**, a powerful feature allowing you to incorporate custom functions or external API calls directly into your chat flow.
+The `useChat` hook supports the integration of [Tools](https://platform.openai.com/docs/api-reference/chat/create#chat-create-tools), a powerful feature allowing you to incorporate custom functions or external API calls directly into your chat flow.
 
 ### Defining a Tool
 
@@ -141,8 +147,6 @@ return {
     component: ...,
     // Optional - used for guiding the AI's response behavior
     data: {
-        // A hint for the chat model on how to describe the weather data in a conversational manner
-        howYouShouldRespond: "You should write a few sentences about the weather based on the data provided.",
         // Example: weather data details
         // provide both the model and the application with specific information about the weather
         // enabling tailored responses and potential follow-up interactions
