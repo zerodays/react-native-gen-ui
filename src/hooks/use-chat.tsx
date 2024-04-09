@@ -18,6 +18,7 @@ interface UseChatParams<V extends ValidatorsObject = {}> {
   onSuccess?: (messages: ChatCompletionMessageOrReactElement[]) => void;
   // Called when an error occurs while streaming
   onError?: (error: Error) => void;
+  // Tools to integrate custom fucntions
   tools?: Tools<V>;
 }
 
