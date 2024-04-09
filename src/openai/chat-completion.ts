@@ -19,7 +19,7 @@ export type ChatCompletionMessageOrReactElement =
 // Takes a description (visible to model)
 // Parameters (zod schema), that are converted to json schema and then sent to the model
 // Render function that takes the parameters and returns a generator that yields components, then returns both data and a component to display
-interface Tool<Z extends z.Schema> {
+export interface Tool<Z extends z.Schema> {
   description: string;
   parameters: Z;
   render: (args: z.infer<Z>) => ToolRenderReturnType;
