@@ -3,16 +3,13 @@ import {
   ChatCompletionTool,
 } from 'openai/resources';
 import React from 'react';
-import {
-  ChatCompletionMessageOrReactComponent,
-  Tools,
-} from './chat-completion';
+import { ChatCompletionMessageOrReactElement, Tools } from './chat-completion';
 import z from 'zod';
 import zodToJsonSchema from 'zod-to-json-schema';
 
 // Filter out React components from a list of messages
 export function filterOutReactComponents(
-  messages: ChatCompletionMessageOrReactComponent[],
+  messages: ChatCompletionMessageOrReactElement[],
 ): ChatCompletionMessageParam[] {
   return messages.filter(
     (m) => !React.isValidElement(m),
@@ -42,4 +39,10 @@ export function toolsToJsonSchema(
   }
 
   return result;
+}
+
+export function isReactElement(
+  message: ChatCompletionMessageOrReactElement,
+): message is React.ReactElement {
+  return React.isValidElement(message);
 }

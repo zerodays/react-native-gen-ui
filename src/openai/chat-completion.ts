@@ -6,18 +6,14 @@ import {
 } from 'openai/resources';
 import z from 'zod';
 import { OpenAIApi } from './openai-api';
-import React from 'react';
+import React, { ReactElement } from 'react';
 import { filterOutReactComponents, sleep, toolsToJsonSchema } from './utils';
 import EventSource, { EventSourceEvent } from 'react-native-sse';
 
-// Includes a few different types.
-// A component type that can be returned from a tool's render function.
-export type Component = React.ReactNode | JSX.Element | Element;
-
 // Tool's render function can return either data or a component
-export type ChatCompletionMessageOrReactComponent =
-  | ChatCompletionMessageParam
-  | Component;
+export type ChatCompletionMessageOrReactElement =
+  | ReactElement
+  | ChatCompletionMessageParam;
 
 // Tool definition
 // Takes a description (visible to model)
@@ -47,19 +43,19 @@ export type ChatCompletionCreateParams = Omit<
   tools?: Tools<{ [toolName: string]: z.Schema }>;
 };
 
-type ToolGeneratorReturn = { component: Component; data: object };
+type ToolGeneratorReturn = { component: ReactElement; data: object };
 
 // A generator that will yield some (0 or more) React components and then finish with an object, containing both the data and the component to display.
 export type ToolRenderReturnType = AsyncGenerator<
-  Component,
+  ReactElement,
   ToolGeneratorReturn,
   unknown
 >;
 
 // Chat completion callbacks, utilized by the caller
 export interface ChatCompletionCallbacks {
-  onChunkReceived?: (messages: ChatCompletionMessageOrReactComponent[]) => void;
-  onDone?: (messages: ChatCompletionMessageOrReactComponent[]) => void;
+  onChunkReceived?: (messages: ChatCompletionMessageOrReactElement[]) => void;
+  onDone?: (messages: ChatCompletionMessageOrReactElement[]) => void;
   onError?: (error: Error) => void;
 }
 
@@ -76,7 +72,7 @@ export class ChatCompletion {
     arguments: '',
   };
   private toolCallResult: any = null;
-  private toolRenderResult: Component | null = null;
+  private toolRenderResult: ReactElement | null = null;
   private finished = false;
 
   constructor(
@@ -230,7 +226,7 @@ export class ChatCompletion {
   // Returns all the messages that have been received so far,
   // including the new message, tool render result and recursive call result
   private getMessages() {
-    const messages: ChatCompletionMessageOrReactComponent[] = [];
+    const messages: ChatCompletionMessageOrReactElement[] = [];
 
     if (this.newMessage != null && this.newMessage !== '') {
       messages.push({
@@ -316,7 +312,7 @@ export class ChatCompletion {
         Object.keys(value).includes('data') &&
         Object.keys(value).includes('component')
       ) {
-        const v = value as { data: any; component: Component };
+        const v = value as { data: any; component: ReactElement };
         this.toolRenderResult = v.component;
         this.toolCallResult = v.data;
       } else if (React.isValidElement(value)) {

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ChatCompletionMessageParam } from 'openai/resources';
 import { z } from 'zod';
 import {
-  ChatCompletionMessageOrReactComponent,
+  ChatCompletionMessageOrReactElement,
   Tools,
   ValidatorsObject,
 } from '../openai/chat-completion';
@@ -10,21 +10,22 @@ import { OpenAI } from '../openai/openai';
 import { filterOutReactComponents } from '../openai/utils';
 
 interface UseChatParams<V extends ValidatorsObject = {}> {
+  // OpenAI instance
+  openAi: OpenAI;
   // Initial messages to display
   initialMessages?: ChatCompletionMessageParam[];
   // Called when streaming response is completed
-  onSuccess?: (messages: ChatCompletionMessageOrReactComponent[]) => void;
+  onSuccess?: (messages: ChatCompletionMessageOrReactElement[]) => void;
   // Called when an error occurs while streaming
   onError?: (error: Error) => void;
   tools?: Tools<V>;
-  maxRecursionDepth?: number;
 }
 
 interface UseChatResponse {
   // State of user input (i.e. in TextInput component)
   input: string;
   // Messages of current chat session
-  messages: ChatCompletionMessageOrReactComponent[];
+  messages: ChatCompletionMessageOrReactElement[];
   // Error that can occur during streaming
   error: Error | undefined;
   // Loading state - true immediately after user message submission
@@ -36,26 +37,20 @@ interface UseChatResponse {
   // Handles user message submission
   handleSubmit: (msg: string) => Promise<void>;
 }
-// OpenAI instance initialization
-const openAi = new OpenAI({
-  // Provided by EXPO_PUBLIC_OPENAI_API_KEY environment variable
-  apiKey: process.env.EXPO_PUBLIC_OPENAI_API_KEY ?? '',
-  // Provided by EXPO_PUBLIC_OPENAI_MODEL environment variable, defaults to 'gpt-4' model
-  model: process.env.EXPO_PUBLIC_OPENAI_MODEL ?? 'gpt-4',
-});
 
 // Hook that handles chat logic for user chat conversation
 const useChat: <V extends ValidatorsObject = {}>(
   params: UseChatParams<V>,
 ) => UseChatResponse = ({
+  openAi,
   initialMessages,
   onSuccess,
   onError,
   tools,
-} = {}): UseChatResponse => {
+}): UseChatResponse => {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<
-    ChatCompletionMessageOrReactComponent[]
+    ChatCompletionMessageOrReactElement[]
   >([]);
   const [error, setError] = useState<Error | undefined>();
   /* Loading states */
@@ -78,7 +73,7 @@ const useChat: <V extends ValidatorsObject = {}>(
     // Clear input on submit
     setInput('');
 
-    const updatedMessages: ChatCompletionMessageOrReactComponent[] = [
+    const updatedMessages: ChatCompletionMessageOrReactElement[] = [
       ...messages,
       {
         // Append user submitted message to current messages

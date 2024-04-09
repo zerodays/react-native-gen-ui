@@ -31,22 +31,32 @@ npm install react-native-gen-ui
 
 ## Basic usage :tada:
 
-Ensure you have the OpenAI API key and the desired model environment variables set up in your project. These are stored as environment variables (in Expo):
+### Import
 
-### Initialization
+To get started, import `useChat` hook in any React component:
+
+```ts
+import { OpenAI, isReactElement, useChat } from 'react-native-gen-ui';
+```
+
+### Initialize the OpenAI instance
+
+```ts
+const openAi = new OpenAI({
+  apiKey: process.env.EXPO_PUBLIC_OPENAI_API_KEY,
+  model: process.env.EXPO_PUBLIC_OPENAI_MODEL || 'gpt-4',
+  // You can even set a custom basePath of your SSE server
+});
+```
+
+Ensure you have the OpenAI API key and the desired model environment variables set up in your project. These are stored as environment variables (in Expo):
 
 ```
 EXPO_PUBLIC_OPENAI_API_KEY=sk....           # Required, you can get one in OpenAi dashboard
 EXPO_PUBLIC_OPENAI_MODEL=model_name_here    # Optional, model name from OpenAI (defaults to 'gpt-4')
 ```
 
-### Import
-
-To get started, import `useChat` hook in any React component:
-
-```ts
-import { useChat } from 'react-native-gen-ui';
-```
+**🚨 Note:** This kind of implementation where you access OpenAI directly from the client device exposes your OpenAI API key to the public. The documentation here is just an example, for production use make sure to point `basePath` to your proxy server that forwards server sent events from OpenAI back to the client.
 
 ### Use the hook
 
@@ -54,6 +64,7 @@ Initialize the `useChat` hook inside your component. You can optionally pass **i
 
 ```ts
 const { input, messages, isLoading, handleSubmit, onInputChange } = useChat({
+  openAi,
   // Optional initial messages
   initialMessages: [
     { content: 'Hi! How can I help you today?', role: 'system' },
@@ -67,16 +78,32 @@ const { input, messages, isLoading, handleSubmit, onInputChange } = useChat({
 
 Create the UI for your chat interface that includes input, submit button and a view to display the chat messages.
 
-```ts
+```tsx
 return (
   <View>
     {messages.map((msg, index) => {
       // Message can be react component or string (see function calling section for more details)
-      if (React.isValidElement(msg)) {
+      if (isReactElement(msg)) {
         return msg;
       }
-
-      return <Text key={index}>{msg.content}</Text>
+      switch (msg.role) {
+        case 'user':
+          return (
+            <Text
+              style={{
+                color: 'blue',
+              }}
+              key={index}>
+              {msg.content?.toString()}
+            </Text>
+          );
+        case 'assistant':
+          return <Text key={index}>{msg.content?.toString()}</Text>;
+        default:
+          // This includes tool calls, tool results and system messages
+          // Those are visible to the model, but here we hide them to the user
+          return null;
+      }
     })}
     <TextInput value={input} onChangeText={onInputChange} />
     <Button
@@ -102,7 +129,7 @@ Tools are defined as part of the `tools` parameter when initializing the `useCha
 
 ```ts
 const { input, messages, isLoading, handleSubmit, onInputChange } = useChat({
-    ...
+     ...
      tools: {
       getWeather: {
         description: "Get weather for a location",
@@ -157,6 +184,7 @@ const {
   onInputChange, // Updates internal state of user input
   handleSubmit, // Handles user message submission
 } = useChat({
+  openAi: OpenAI, // OpenAI instance (imported from 'react-native-gen-ui')
   initialMessages: [], // Initial messages chat messages
   onSuccess: () => {...}, // Called when streaming response is completed
   onError: (error) => {...}, // Called when an error occurs while streaming
