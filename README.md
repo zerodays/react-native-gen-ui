@@ -65,7 +65,7 @@ EXPO_PUBLIC_OPENAI_MODEL=model_name_here    # Optional, model name from OpenAI (
 Initialize the `useChat` hook inside your component. You can optionally pass **initial messages**, **success** and **error handlers**, and any tools the model will have access to.
 
 ```ts
-const { input, messages, isLoading, handleSubmit } = useChat({
+const { input, onInputChange, messages, isLoading, handleSubmit } = useChat({
   openAi,
   // Optional initial messages
   initialMessages: [
