@@ -4,6 +4,8 @@ Inspired by Vercel's [Generative UI](https://sdk.vercel.ai/docs/concepts/ai-rsc)
 
 Offers a seamless integration of OpenAI's advanced AI capabilities within React Native applications. Library provides components and helpers for building AI-powered streaming text and chat UIs.
 
+![Example Gif](assets/example.gif)
+
 ## Features
 
 - React Native (with Expo) type-safe helpers for streaming text responses + components for building chat UIs
@@ -43,8 +45,8 @@ import { OpenAI, isReactElement, useChat } from 'react-native-gen-ui';
 
 ```ts
 const openAi = new OpenAI({
-  apiKey: process.env.EXPO_PUBLIC_OPENAI_API_KEY,
-  model: process.env.EXPO_PUBLIC_OPENAI_MODEL || 'gpt-4',
+  apiKey: process.env.EXPO_PUBLIC_OPENAI_API_KEY!,
+  model: 'gpt-4',
   // You can even set a custom basePath of your SSE server
 });
 ```
@@ -63,7 +65,7 @@ EXPO_PUBLIC_OPENAI_MODEL=model_name_here    # Optional, model name from OpenAI (
 Initialize the `useChat` hook inside your component. You can optionally pass **initial messages**, **success** and **error handlers**, and any tools the model will have access to.
 
 ```ts
-const { input, messages, isLoading, handleSubmit } = useChat({
+const { input, onInputChange, messages, isLoading, handleSubmit } = useChat({
   openAi,
   // Optional initial messages
   initialMessages: [
