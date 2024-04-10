@@ -46,7 +46,7 @@ import { OpenAI, isReactElement, useChat } from 'react-native-gen-ui';
 ```ts
 const openAi = new OpenAI({
   apiKey: process.env.EXPO_PUBLIC_OPENAI_API_KEY!,
-  model: process.env.EXPO_PUBLIC_OPENAI_MODEL || 'gpt-4',
+  model: 'gpt-4',
   // You can even set a custom basePath of your SSE server
 });
 ```
