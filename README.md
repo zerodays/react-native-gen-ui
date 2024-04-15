@@ -174,6 +174,26 @@ const { input, messages, isLoading, handleSubmit, onInputChange } = useChat({
 });
 ```
 
+If tool doesn't need to do any async operations as you expect the AI model to return all the required data to render the component, you can use a simple function that returns a component:
+
+```ts
+tools: {
+  joke: {
+    description:
+      "Call this tool with an original joke setup and punchline.",
+    parameters: z.object({
+      setup: z.string(),
+      punchline: z.string(),
+    }),
+    // Render component for joke and pass data also back to the model.
+    render: (data) => ({
+      data,
+      component: <JokeCard data={data} />,
+    }),
+  },
+},
+```
+
 Tools framework within `useChat` is highly extensible. You can define multiple tools to perform various functions based on your chat application's requirements.
 
 ## Reference
