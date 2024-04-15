@@ -6,6 +6,8 @@ Offers a seamless integration of OpenAI's advanced AI capabilities within React 
 
 ![Example Gif](assets/example.gif)
 
+If you are interested in learning more, take a look at this [blog post](https://dev.to/zerodays/generative-ui-in-react-native-180f). It discusses how to build UIs with this package and what is behind the scenes.
+
 ## Features
 
 - React Native (with Expo) type-safe helpers for streaming text responses + components for building chat UIs
@@ -198,6 +200,7 @@ const {
 
 - Minimal: https://github.com/zerodays/react-native-gen-ui-minimal-example
 - Location & Weather: https://github.com/zerodays/react-native-gen-ui-weather-example
+- Blog post with more details: https://dev.to/zerodays/generative-ui-in-react-native-180f
 
 ## License
 
