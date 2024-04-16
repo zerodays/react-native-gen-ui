@@ -174,7 +174,7 @@ const { input, messages, isLoading, handleSubmit, onInputChange } = useChat({
 });
 ```
 
-If tool doesn't need to do any async operations as you expect the AI model to return all the required data to render the component, you can use a simple function that returns a component:
+If tool doesn't need to do any async operations as you expect the AI model to return all the required data to render the component, you can use a simple function that returns the data and the component:
 
 ```ts
 tools: {
