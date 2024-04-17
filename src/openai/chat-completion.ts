@@ -7,7 +7,12 @@ import {
 import z from 'zod';
 import { OpenAIApi } from './openai-api';
 import React, { ReactElement } from 'react';
-import { filterOutReactComponents, sleep, toolsToJsonSchema } from './utils';
+import {
+  filterOutReactComponents,
+  isAsyncGeneratorFunction,
+  sleep,
+  toolsToJsonSchema,
+} from './utils';
 import EventSource, { EventSourceEvent } from 'react-native-sse';
 
 // Tool's render function can return either data or a component
@@ -46,11 +51,10 @@ export type ChatCompletionCreateParams = Omit<
 type ToolGeneratorReturn = { component: ReactElement; data: object };
 
 // A generator that will yield some (0 or more) React components and then finish with an object, containing both the data and the component to display.
-export type ToolRenderReturnType = AsyncGenerator<
-  ReactElement,
-  ToolGeneratorReturn,
-  unknown
->;
+// Allow also to return only a component and data in case the tool does not need to do any async operations.
+export type ToolRenderReturnType =
+  | AsyncGenerator<ReactElement, ToolGeneratorReturn, unknown>
+  | ToolGeneratorReturn;
 
 // Chat completion callbacks, utilized by the caller
 export interface ChatCompletionCallbacks {
@@ -295,37 +299,51 @@ export class ChatCompletion {
       return;
     }
 
-    // Call the tool and iterate over results
-    // Use while to access the last value of the generator (what it returns too rather then only what it yields)
-    // Only the last returned/yielded value is the one we use
-    const generator = chosenTool.render(args);
+    // This is either
+    // - an async generator (if tool will be fetching data asynchronously)
+    // - a component and data (if tool does not need to do any async operations)
+    const generatorOrData = chosenTool.render(args);
 
-    let next = null;
-    while (next == null || !next.done) {
-      // Fetch the next value
-      next = await generator.next();
-      const value = next.value;
+    if (isAsyncGeneratorFunction(generatorOrData)) {
+      // Call the tool and iterate over results
+      // Use while to access the last value of the generator (what it returns too rather then only what it yields)
+      // Only the last returned/yielded value is the one we use
+      const generator = generatorOrData;
+      let next = null;
+      while (next == null || !next.done) {
+        // Fetch the next value
+        next = await generator.next();
+        const value = next.value;
 
-      // If the value is contains data and component, save both
-      if (
-        value != null &&
-        Object.keys(value).includes('data') &&
-        Object.keys(value).includes('component')
-      ) {
-        const v = value as { data: any; component: ReactElement };
-        this.toolRenderResult = v.component;
-        this.toolCallResult = v.data;
-      } else if (React.isValidElement(value)) {
-        this.toolRenderResult = value;
+        // If the value is contains data and component, save both
+        if (
+          value != null &&
+          Object.keys(value).includes('data') &&
+          Object.keys(value).includes('component')
+        ) {
+          const v = value as { data: any; component: ReactElement };
+          this.toolRenderResult = v.component;
+          this.toolCallResult = v.data;
+        } else if (React.isValidElement(value)) {
+          this.toolRenderResult = value;
+        }
+
+        // Update the parent by calling the callbacks
+        this.notifyChunksReceived();
+
+        // Break if the generator is done
+        if (next.done) {
+          break;
+        }
       }
+    } else {
+      // Not a generator, simply call the render function, we received all the data at once.
+      const data = generatorOrData;
+      this.toolRenderResult = data.component;
+      this.toolCallResult = data.data;
 
       // Update the parent by calling the callbacks
       this.notifyChunksReceived();
-
-      // Break if the generator is done
-      if (next.done) {
-        break;
-      }
     }
 
     // Call recursive streaming

@@ -46,3 +46,8 @@ export function isReactElement(
 ): message is React.ReactElement {
   return React.isValidElement(message);
 }
+
+export function isAsyncGeneratorFunction(fn: unknown): fn is AsyncGenerator {
+  // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/AsyncGenerator
+  return fn?.constructor?.name === 'AsyncGenerator';
+}
