@@ -1,5 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { ChatCompletionMessageParam } from 'openai/resources';
+import {
+  ChatCompletionContentPart,
+  ChatCompletionMessageParam,
+} from 'openai/resources';
 import { z } from 'zod';
 import {
   ChatCompletionMessageOrReactElement,
@@ -36,7 +39,7 @@ interface UseChatResponse {
   // Updates internal state of user input
   onInputChange: React.Dispatch<React.SetStateAction<string>>;
   // Handles user message submission
-  handleSubmit: (msg: string) => Promise<void>;
+  handleSubmit: (msg: string | ChatCompletionContentPart[]) => Promise<void>;
 }
 
 // Hook that handles chat logic for user chat conversation
@@ -67,7 +70,7 @@ const useChat: <V extends ValidatorsObject = {}>(
     }
   }, []);
 
-  const handleSubmit = async (msg: string) => {
+  const handleSubmit = async (msg: string | ChatCompletionContentPart[]) => {
     // Called on user message submission
     // Start loading
     setIsLoading(true);
